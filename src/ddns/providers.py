@@ -25,6 +25,8 @@ import os
 import subprocess
 import urllib2
 import xml.dom.minidom
+import string
+import re
 
 from i18n import _
 
@@ -1160,6 +1162,58 @@ class DDNSProviderSelfhost(DDNSProtocolDynDNS2, DDNSProvider):
 		})
 
 		return data
+
+class DDNSProviderServermaster(DDNSProvider):
+	handle  = "servermaster.de"
+	name    = "DynDNS Servermaster"
+	website = "http://dyndns.servermaster.de/"
+	protocols = ("ipv4",)
+
+	# API documentation is available for registered members only:
+	# Request URL:	http://dyndns.servermaster.de/setup.router.php#f1
+	# Response Codes:	http://forum.servermaster.de/showthread.php?tid=339
+	# They are using an extended DynDNS2 protocol
+
+	url = "http://dyndns.servermaster.de/update"
+	can_remove_records = False
+
+	def update_protocol(self, proto):
+		if not self.username or not self.password:
+			raise DDNSConfigurationError(_("No Auth details specified."))
+
+		data = {
+			"username" : self.username,
+			"password" : self.password,
+			"hostname" : self.hostname,
+		}
+
+		# Send update request to the server
+		response = self.send_request(self.url, data=data)
+
+		# Get the response message, remove surrounding html tags and whitespace
+		output = re.sub(r'(<!--.*?-->|<[^>]*>)', '', response.read())
+		output = output.strip(string.whitespace)
+
+		# Handle success codes
+		if output.startswith("good") or output.startswith("nochg"):
+			return
+
+		# Handle error codes
+		if   output == "abuse":
+			raise DDNSAbuseError
+		elif output == "badauth":
+			raise DDNSAuthenticationError
+		elif output == "badagent":
+			raise DDNSBlockedError
+		elif output == "nohost":
+			raise DDNSRequestError(_("Specified host does not exist."))
+		elif output == "noip":
+			raise DDNSRequestError(_("No valid IP was given or identified by the server."))
+		elif output == "dnserr":
+			raise DDNSInternalServerError(_("DNS error encountered."))
+
+		# If we got here, some other update error happened.
+		raise DDNSUpdateError(_("Server response: %s") % output)
 
 
 class DDNSProviderSPDNS(DDNSProtocolDynDNS2, DDNSProvider):

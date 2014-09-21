@@ -118,6 +118,11 @@
 # username = user
 # password = pass
 
+# [test.servermaster.de]
+# provider = servermaster.de
+# username = user
+# password = pass
+
 # [test.spdns.org]
 # provider = spdns.org
 
