@@ -25,7 +25,6 @@ import os
 import subprocess
 import urllib2
 import xml.dom.minidom
-import string
 import re
 
 from i18n import _
@@ -1190,12 +1189,16 @@ class DDNSProviderServermaster(DDNSProvider):
 		# Send update request to the server
 		response = self.send_request(self.url, data=data)
 
-		# Get the response message, remove surrounding html tags and whitespace
-		output = re.sub(r'(<!--.*?-->|<[^>]*>)', '', response.read())
-		output = output.strip(string.whitespace)
+		# Extract response code between HTML body tags
+		responseText = response.read()
+		codeSearch = re.search(r'<body>\s*(\w+?)\s?([0-9.]*?)\s*<\/body>', responseText, re.IGNORECASE)
+		if codeSearch:
+			output = codeSearch.group(1).lower()
+		else:
+			raise DDNSUpdateError(_("Server response: %s") % responseText)
 
 		# Handle success codes
-		if output.startswith("good") or output.startswith("nochg"):
+		if output == "good" or output == "nochg":
 			return
 
 		# Handle error codes
